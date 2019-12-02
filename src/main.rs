@@ -1,4 +1,4 @@
-use advent2019::*;
+use advent2019::intcode::*;
 fn main() {
-    println!("{}", day1_2());
+    hello();
 }

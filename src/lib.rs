@@ -1,5 +1,6 @@
 use std::fs;
 use std::io::{prelude::*, BufReader};
+
 pub fn day1() -> i32 {
     let file = fs::File::open("data/day1.txt").unwrap();
     let reader = BufReader::new(file);
@@ -24,3 +25,5 @@ fn total_fuel(mass: i32) -> i32 {
     }
     fuel
 }
+
+pub mod intcode;
