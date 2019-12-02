@@ -1,4 +1,4 @@
-use advent2019::day1;
+use advent2019::*;
 fn main() {
-    day1();
+    println!("{}", day1_2());
 }
