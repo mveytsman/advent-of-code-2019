@@ -34,7 +34,7 @@ fn valid2(num: i32) -> bool {
 pub fn day4(start: i32, end: i32) -> i32 {
     let mut count = 0;
     for i in start..(end + 1) {
-        if valid2(i) {
+        if valid(i) {
             count += 1;
         }
     }
