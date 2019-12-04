@@ -1,4 +1,4 @@
 use advent2019::*;
 fn main() {
-    println!("{}", day_2_2());
+    println!("{}", day4::day4(240298, 784956));
 }
