@@ -43,13 +43,11 @@ impl Computer {
     }
 
     fn print_memory(&self) -> String {
-        let memory: Vec<String> = self
-            .memory
-            .clone()
-            .into_iter()
+        self.memory
+            .iter()
             .map(|i| i.to_string())
-            .collect();
-        memory.join(",")
+            .collect::<Vec<String>>()
+            .join(",")
     }
 }
 
