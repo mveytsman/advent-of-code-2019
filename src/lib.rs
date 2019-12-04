@@ -47,4 +47,7 @@ pub fn day_2_2() -> i32 {
     }
     return -1;
 }
+
+pub mod day3;
+pub mod day4;
 pub mod intcode;
