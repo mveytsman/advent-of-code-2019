@@ -2,6 +2,7 @@ use std::convert::TryInto;
 pub struct Computer {
     pc: usize,
     pub memory: Vec<i32>,
+    outputs: Vec<i32>,
 }
 
 #[derive(Debug)]
@@ -25,6 +26,10 @@ enum Opcode {
     Mult(Mode, Mode),
     Input,
     Output(Mode),
+    JIT(Mode, Mode),
+    JIF(Mode, Mode),
+    LT(Mode, Mode),
+    Eq(Mode, Mode),
     Halt,
 }
 impl Opcode {
@@ -38,6 +43,10 @@ impl Opcode {
             2 => Opcode::Mult(mode1, mode2),
             3 => Opcode::Input,
             4 => Opcode::Output(mode1),
+            5 => Opcode::JIT(mode1, mode2),
+            6 => Opcode::JIF(mode1, mode2),
+            7 => Opcode::LT(mode1, mode2),
+            8 => Opcode::Eq(mode1, mode2),
             99 => Opcode::Halt,
             x => panic!("unknown opcode: {}", x),
         }
@@ -51,10 +60,11 @@ impl Computer {
         Computer {
             pc: 0,
             memory: memory,
+            outputs: vec![],
         }
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&mut self, input: i32) {
         let opcode = Opcode::new(self.read_and_advance());
         match opcode {
             Opcode::Add(mode1, mode2) => {
@@ -63,31 +73,74 @@ impl Computer {
 
                 let result = inputs[0] + inputs[1];
                 self.memory[output_addr] = result;
-                self.run();
+                self.run(input);
             }
+
             Opcode::Mult(mode1, mode2) => {
                 let inputs = self.get_operands(vec![mode1, mode2]);
                 let output_addr = self.read_and_advance() as usize;
 
                 let result = inputs[0] * inputs[1];
                 self.memory[output_addr] = result;
-                self.run();
+                self.run(input);
             }
+
             Opcode::Input => {
-                let input = 1; // hardcoded
                 let output_addr = self.read_and_advance() as usize;
 
                 self.memory[output_addr] = input;
-                self.run();
+                self.run(input);
             }
 
             Opcode::Output(mode1) => {
                 let inputs = self.get_operands(vec![mode1]);
 
                 let result = inputs[0];
+                self.outputs.push(result);
                 println!("OUTPUT: {}", result);
-                self.run();
+                self.run(input);
             }
+
+            Opcode::JIT(mode1, mode2) => {
+                let inputs = self.get_operands(vec![mode1, mode2]);
+                if inputs[0] != 0 {
+                    self.pc = inputs[1] as usize;
+                }
+                self.run(input);
+            }
+
+            Opcode::JIF(mode1, mode2) => {
+                let inputs = self.get_operands(vec![mode1, mode2]);
+                if inputs[0] == 0 {
+                    self.pc = inputs[1] as usize;
+                }
+                self.run(input);
+            }
+
+            Opcode::LT(mode1, mode2) => {
+                let inputs = self.get_operands(vec![mode1, mode2]);
+                let output_addr = self.read_and_advance() as usize;
+
+                if inputs[0] < inputs[1] {
+                    self.memory[output_addr] = 1;
+                } else {
+                    self.memory[output_addr] = 0;
+                }
+                self.run(input);
+            }
+
+            Opcode::Eq(mode1, mode2) => {
+                let inputs = self.get_operands(vec![mode1, mode2]);
+                let output_addr = self.read_and_advance() as usize;
+
+                if inputs[0] == inputs[1] {
+                    self.memory[output_addr] = 1;
+                } else {
+                    self.memory[output_addr] = 0;
+                }
+                self.run(input);
+            }
+
             Opcode::Halt => {
                 println!("DONE");
             }
@@ -141,8 +194,24 @@ mod tests {
         ];
         for [input, output] in t.into_iter() {
             let mut computer = Computer::load(input);
-            computer.run();
+            computer.run(1);
             assert_eq!(computer.print_memory(), output);
         }
+    }
+
+    #[test]
+    fn test_part2() {
+        let input = "3,21,1008,21,8,20,1005,20,22,107,8,21,20,1006,20,31,1106,0,36,98,0,0,1002,21,125,20,4,20,1105,1,46,104,999,1105,1,46,1101,1000,1,20,4,20,1105,1,46,98,99";
+        let mut computer = Computer::load(input);
+        computer.run(1);
+        assert_eq!(vec![999], computer.outputs);
+
+        let mut computer = Computer::load(input);
+        computer.run(8);
+        assert_eq!(vec![1000], computer.outputs);
+
+        let mut computer = Computer::load(input);
+        computer.run(9);
+        assert_eq!(vec![1001], computer.outputs);
     }
 }
