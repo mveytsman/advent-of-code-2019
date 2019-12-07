@@ -48,11 +48,18 @@ pub fn day_2_2() -> i32 {
     return -1;
 }
 
-pun fn day_5_2() {
+pub fn day6_1() -> i32 {
+    let input = fs::read_to_string("data/day6.txt").unwrap();
+    day6::count_orbits(&input)
+}
 
+pub fn day6_2() -> i32 {
+    let input = fs::read_to_string("data/day6.txt").unwrap();
+    day6::count_transfers(&input, "YOU", "SAN")
 }
 
 pub mod day3;
 pub mod day3_2;
 pub mod day4;
+pub mod day6;
 pub mod intcode;
