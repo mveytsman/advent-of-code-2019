@@ -223,22 +223,46 @@ pub fn day7(input: &str) -> i32 {
     max_output
 }
 
+fn prev_index(i: usize, max: usize) -> usize {
+    if i > 0 {
+        i - 1
+    } else {
+        max - 1
+    }
+}
+
 pub fn day7_2(input: &str) -> i32 {
     let mut phase_settings = vec![5, 6, 7, 8, 9];
     let heap = Heap::new(&mut phase_settings);
     let mut max_output = 0;
     for permutation in heap {
-        let mut last_output = 0;
         dbg!(&permutation);
         let mut computers = vec![];
         for i in permutation {
             let mut computer = Computer::load(input);
+            computer.run_with_input(i);
             computers.push(computer);
         }
 
-        let num_halted = 0;
-        let mut i = 0;
-        while num_halted < computers.len() {}
+        let mut num_halted = 0;
+        let mut i = 1;
+        computers[0].run_with_input(0);
+        while num_halted < computers.len() {
+            i = i % computers.len();
+            if computers[i].halted {
+                num_halted += 1; // this may be a bug
+            } else {
+                let output = *computers[prev_index(i, computers.len())]
+                    .outputs
+                    .last()
+                    .unwrap();
+                computers[i].run_with_input(output);
+            }
+
+            i += 1;
+        }
+
+        let last_output = *computers[computers.len() - 1].outputs.last().unwrap();
 
         if last_output > max_output {
             max_output = last_output;
@@ -295,5 +319,11 @@ mod tests {
             day7("3,23,3,24,1002,24,10,24,1002,23,-1,23,101,5,23,23,1,24,23,23,4,23,99,0,0")
         );
         assert_eq!(65210,day7("3,31,3,32,1002,32,10,32,1001,31,-2,31,1007,31,0,33,1002,33,7,33,1,33,31,31,1,32,31,31,4,31,99,0,0,0"))
+    }
+
+    #[test]
+    fn test_day7_2() {
+        assert_eq!(139629729, day7_2("3,26,1001,26,-4,26,3,27,1002,27,2,27,1,27,26,27,4,27,1001,28,-1,28,1005,28,6,99,0,0,5"));
+        assert_eq!(18216, day7_2("3,52,1001,52,-5,52,3,53,1,52,56,54,1007,54,5,55,1005,55,26,1001,54,-5,54,1105,1,12,1,53,54,53,1008,54,0,55,1001,55,1,55,2,53,55,53,4,53,1001,56,-1,56,1005,56,6,99,0,0,0,0,10"));
     }
 }
