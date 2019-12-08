@@ -1,8 +1,11 @@
+use permutohedron::Heap;
 use std::convert::TryInto;
+
 pub struct Computer {
     pc: usize,
     pub memory: Vec<i32>,
     outputs: Vec<i32>,
+    halted: bool,
 }
 
 #[derive(Debug)]
@@ -61,10 +64,11 @@ impl Computer {
             pc: 0,
             memory: memory,
             outputs: vec![],
+            halted: false,
         }
     }
 
-    pub fn run(&mut self, input: i32) {
+    pub fn run(&mut self, input: Vec<i32>) {
         let opcode = Opcode::new(self.read_and_advance());
         match opcode {
             Opcode::Add(mode1, mode2) => {
@@ -86,10 +90,14 @@ impl Computer {
             }
 
             Opcode::Input => {
+                if input.len() == 0 {
+                    //stop and wait for more input
+                    self.pc -= 1;
+                    return;
+                }
                 let output_addr = self.read_and_advance() as usize;
-
-                self.memory[output_addr] = input;
-                self.run(input);
+                self.memory[output_addr] = input[0];
+                self.run(input[1..].to_vec());
             }
 
             Opcode::Output(mode1) => {
@@ -97,7 +105,6 @@ impl Computer {
 
                 let result = inputs[0];
                 self.outputs.push(result);
-                println!("OUTPUT: {}", result);
                 self.run(input);
             }
 
@@ -141,9 +148,7 @@ impl Computer {
                 self.run(input);
             }
 
-            Opcode::Halt => {
-                println!("DONE");
-            }
+            Opcode::Halt => self.halted = true,
         }
     }
 
@@ -178,6 +183,53 @@ impl Computer {
     }
 }
 
+pub fn day7(input: &str) -> i32 {
+    let mut phase_settings = vec![0, 1, 2, 3, 4];
+    let heap = Heap::new(&mut phase_settings);
+    let mut max_output = 0;
+    for permutation in heap {
+        let mut last_output = 0;
+        dbg!(&permutation);
+        for i in permutation {
+            let mut computer = Computer::load(input);
+            dbg!(&last_output);
+            computer.run(vec![i, last_output]);
+            last_output = computer.outputs[0]
+        }
+        if last_output > max_output {
+            max_output = last_output;
+        }
+    }
+    max_output
+}
+
+pub fn day7_2(input: &str) -> i32 {
+    let mut phase_settings = vec![5, 6, 7, 8, 9];
+    let heap = Heap::new(&mut phase_settings);
+    let mut max_output = 0;
+    for permutation in heap {
+        let mut last_output = 0;
+        dbg!(&permutation);
+        let mut computers = vec![];
+        for i in permutation {
+            let mut computer = Computer::load(input);
+            computer.run(vec![i, last_output]);
+            last_output = computer.outputs[0];
+            computers.push(computer);
+        }
+        // keep running till we are all done
+        let num_halted = 0;
+        //	while num_halted < computers.len() {
+        //	    for
+        //	}
+
+        if last_output > max_output {
+            max_output = last_output;
+        }
+    }
+    max_output
+}
+
 #[cfg(test)]
 mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
@@ -194,7 +246,7 @@ mod tests {
         ];
         for [input, output] in t.into_iter() {
             let mut computer = Computer::load(input);
-            computer.run(1);
+            computer.run(vec![1]);
             assert_eq!(computer.print_memory(), output);
         }
     }
@@ -203,15 +255,28 @@ mod tests {
     fn test_part2() {
         let input = "3,21,1008,21,8,20,1005,20,22,107,8,21,20,1006,20,31,1106,0,36,98,0,0,1002,21,125,20,4,20,1105,1,46,104,999,1105,1,46,1101,1000,1,20,4,20,1105,1,46,98,99";
         let mut computer = Computer::load(input);
-        computer.run(1);
+        computer.run(vec![1]);
         assert_eq!(vec![999], computer.outputs);
 
         let mut computer = Computer::load(input);
-        computer.run(8);
+        computer.run(vec![8]);
         assert_eq!(vec![1000], computer.outputs);
 
         let mut computer = Computer::load(input);
-        computer.run(9);
+        computer.run(vec![9]);
         assert_eq!(vec![1001], computer.outputs);
+    }
+
+    #[test]
+    fn test_day7() {
+        assert_eq!(
+            43210,
+            day7("3,15,3,16,1002,16,10,16,1,16,15,15,4,15,99,0,0")
+        );
+        assert_eq!(
+            54321,
+            day7("3,23,3,24,1002,24,10,24,1002,23,-1,23,101,5,23,23,1,24,23,23,4,23,99,0,0")
+        );
+        assert_eq!(65210,day7("3,31,3,32,1002,32,10,32,1001,31,-2,31,1007,31,0,33,1002,33,7,33,1,33,31,31,1,32,31,31,4,31,99,0,0,0"))
     }
 }
