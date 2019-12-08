@@ -2,6 +2,7 @@ use permutohedron::Heap;
 use std::convert::TryInto;
 
 pub struct Computer {
+    input: Option<i32>,
     pc: usize,
     pub memory: Vec<i32>,
     outputs: Vec<i32>,
@@ -61,6 +62,7 @@ impl Computer {
         let mut memory: Vec<i32> = Vec::new();
         memory.extend(text.split(",").map(|i| i.parse::<i32>().unwrap()));
         Computer {
+            input: None,
             pc: 0,
             memory: memory,
             outputs: vec![],
@@ -68,7 +70,18 @@ impl Computer {
         }
     }
 
-    pub fn run(&mut self, input: Vec<i32>) {
+    pub fn input(&mut self, input: i32) {
+        match self.input {
+            None => self.input = Some(input),
+            Some(_) => panic!("already have input!"),
+        }
+    }
+
+    pub fn run_with_input(&mut self, input: i32) {
+        self.input(input);
+        self.run();
+    }
+    pub fn run(&mut self) {
         let opcode = Opcode::new(self.read_and_advance());
         match opcode {
             Opcode::Add(mode1, mode2) => {
@@ -77,7 +90,7 @@ impl Computer {
 
                 let result = inputs[0] + inputs[1];
                 self.memory[output_addr] = result;
-                self.run(input);
+                self.run();
             }
 
             Opcode::Mult(mode1, mode2) => {
@@ -86,18 +99,22 @@ impl Computer {
 
                 let result = inputs[0] * inputs[1];
                 self.memory[output_addr] = result;
-                self.run(input);
+                self.run();
             }
 
             Opcode::Input => {
-                if input.len() == 0 {
-                    //stop and wait for more input
-                    self.pc -= 1;
-                    return;
+                match self.input {
+                    Some(input) => {
+                        let output_addr = self.read_and_advance() as usize;
+                        self.memory[output_addr] = input;
+                        self.input = None;
+                        self.run();
+                    }
+                    None => {
+                        // move pc back and wait for more input
+                        self.pc -= 1;
+                    }
                 }
-                let output_addr = self.read_and_advance() as usize;
-                self.memory[output_addr] = input[0];
-                self.run(input[1..].to_vec());
             }
 
             Opcode::Output(mode1) => {
@@ -105,7 +122,7 @@ impl Computer {
 
                 let result = inputs[0];
                 self.outputs.push(result);
-                self.run(input);
+                self.run();
             }
 
             Opcode::JIT(mode1, mode2) => {
@@ -113,7 +130,7 @@ impl Computer {
                 if inputs[0] != 0 {
                     self.pc = inputs[1] as usize;
                 }
-                self.run(input);
+                self.run();
             }
 
             Opcode::JIF(mode1, mode2) => {
@@ -121,7 +138,7 @@ impl Computer {
                 if inputs[0] == 0 {
                     self.pc = inputs[1] as usize;
                 }
-                self.run(input);
+                self.run();
             }
 
             Opcode::LT(mode1, mode2) => {
@@ -133,7 +150,7 @@ impl Computer {
                 } else {
                     self.memory[output_addr] = 0;
                 }
-                self.run(input);
+                self.run();
             }
 
             Opcode::Eq(mode1, mode2) => {
@@ -145,7 +162,7 @@ impl Computer {
                 } else {
                     self.memory[output_addr] = 0;
                 }
-                self.run(input);
+                self.run();
             }
 
             Opcode::Halt => self.halted = true,
@@ -193,7 +210,10 @@ pub fn day7(input: &str) -> i32 {
         for i in permutation {
             let mut computer = Computer::load(input);
             dbg!(&last_output);
-            computer.run(vec![i, last_output]);
+            computer.run_with_input(i);
+            if !computer.halted {
+                computer.run_with_input(last_output);
+            }
             last_output = computer.outputs[0]
         }
         if last_output > max_output {
@@ -213,15 +233,12 @@ pub fn day7_2(input: &str) -> i32 {
         let mut computers = vec![];
         for i in permutation {
             let mut computer = Computer::load(input);
-            computer.run(vec![i, last_output]);
-            last_output = computer.outputs[0];
             computers.push(computer);
         }
-        // keep running till we are all done
+
         let num_halted = 0;
-        //	while num_halted < computers.len() {
-        //	    for
-        //	}
+        let mut i = 0;
+        while num_halted < computers.len() {}
 
         if last_output > max_output {
             max_output = last_output;
@@ -246,7 +263,7 @@ mod tests {
         ];
         for [input, output] in t.into_iter() {
             let mut computer = Computer::load(input);
-            computer.run(vec![1]);
+            computer.run();
             assert_eq!(computer.print_memory(), output);
         }
     }
@@ -255,15 +272,15 @@ mod tests {
     fn test_part2() {
         let input = "3,21,1008,21,8,20,1005,20,22,107,8,21,20,1006,20,31,1106,0,36,98,0,0,1002,21,125,20,4,20,1105,1,46,104,999,1105,1,46,1101,1000,1,20,4,20,1105,1,46,98,99";
         let mut computer = Computer::load(input);
-        computer.run(vec![1]);
+        computer.run_with_input(1);
         assert_eq!(vec![999], computer.outputs);
 
         let mut computer = Computer::load(input);
-        computer.run(vec![8]);
+        computer.run_with_input(8);
         assert_eq!(vec![1000], computer.outputs);
 
         let mut computer = Computer::load(input);
-        computer.run(vec![9]);
+        computer.run_with_input(9);
         assert_eq!(vec![1001], computer.outputs);
     }
 
