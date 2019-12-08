@@ -58,8 +58,14 @@ pub fn day6_2() -> i32 {
     day6::count_transfers(&input, "YOU", "SAN")
 }
 
+pub fn day8_1() -> usize {
+    let input = fs::read_to_string("data/day8.txt").unwrap();
+    day8::day8_1(input.trim(), 25, 6)
+}
+
 pub mod day3;
 pub mod day3_2;
 pub mod day4;
 pub mod day6;
+pub mod day8;
 pub mod intcode;
