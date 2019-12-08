@@ -63,6 +63,11 @@ pub fn day8_1() -> usize {
     day8::day8_1(input.trim(), 25, 6)
 }
 
+pub fn day8_2() {
+    let input = fs::read_to_string("data/day8.txt").unwrap();
+    day8::collapse_layers(input.trim(), 25, 6);
+}
+
 pub mod day3;
 pub mod day3_2;
 pub mod day4;
