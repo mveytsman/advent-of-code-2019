@@ -52,9 +52,10 @@ impl Memory {
 
     fn print(&self) -> String {
         let mut keys: Vec<&Word> = self.mem.keys().collect();
-	keys.sort();
+        keys.sort();
 
-        keys.iter().map(|i| self.mem[*i].to_string())
+        keys.iter()
+            .map(|i| self.mem[*i].to_string())
             .collect::<Vec<String>>()
             .join(",")
     }
@@ -79,8 +80,8 @@ impl Mode {
 }
 #[derive(Debug)]
 enum Opcode {
-    Add(Mode, Mode),
-    Mult(Mode, Mode),
+    Add(Mode, Mode, Mode),
+    Mult(Mode, Mode, Mode),
     Input(Mode),
     Output(Mode),
     JIT(Mode, Mode),
@@ -98,8 +99,8 @@ impl Opcode {
         let mode2 = Mode::new((opcode / 1000) % 10);
         let mode3 = Mode::new((opcode / 10000) % 10);
         match op {
-            1 => Opcode::Add(mode1, mode2),
-            2 => Opcode::Mult(mode1, mode2),
+            1 => Opcode::Add(mode1, mode2, mode3),
+            2 => Opcode::Mult(mode1, mode2, mode3),
             3 => Opcode::Input(mode1),
             4 => Opcode::Output(mode1),
             5 => Opcode::JIT(mode1, mode2),
@@ -141,34 +142,29 @@ impl Computer {
         let opcode = Opcode::new(self.read_and_advance());
         dbg!(&opcode);
         match opcode {
-            Opcode::Add(mode1, mode2) => {
+            Opcode::Add(mode1, mode2, mode3) => {
                 let inputs = self.get_operands(vec![mode1, mode2]);
                 let output_addr = self.read_and_advance();
 
                 let result = inputs[0] + inputs[1];
-                self.memory.write(output_addr, result);
+                self.write(output_addr, result, mode3);
                 self.run();
             }
 
-            Opcode::Mult(mode1, mode2) => {
+            Opcode::Mult(mode1, mode2, mode3) => {
                 let inputs = self.get_operands(vec![mode1, mode2]);
                 let output_addr = self.read_and_advance();
 
                 let result = inputs[0] * inputs[1];
-                self.memory.write(output_addr, result);
+                self.write(output_addr, result, mode3);
                 self.run();
             }
 
             Opcode::Input(mode1) => {
                 match self.input {
                     Some(input) => {
-                        let argument = self.read_and_advance();
-                        let ptr = match mode1 {
-                            Mode::Immediate => panic!("NO!"),
-                            Mode::Position => argument,
-                            Mode::Relative => self.relative_base + argument,
-                        };
-                        self.memory.write(ptr, input);
+                        let output_addr = self.read_and_advance();
+                        self.write(output_addr, input, mode1);
                         self.input = None;
                         self.run();
                     }
@@ -207,9 +203,9 @@ impl Computer {
                 let output_addr = self.read_and_advance();
 
                 if inputs[0] < inputs[1] {
-                    self.memory.write(output_addr, 1);
+                    self.write(output_addr, 1, mode3);
                 } else {
-                    self.memory.write(output_addr, 0);
+                    self.write(output_addr, 0, mode3);
                 }
                 self.run();
             }
@@ -219,9 +215,9 @@ impl Computer {
                 let output_addr = self.read_and_advance();
 
                 if inputs[0] == inputs[1] {
-                    self.memory.write(output_addr, 1);
+                    self.write(output_addr, 1, mode3);
                 } else {
-                    self.memory.write(output_addr, 0);
+                    self.write(output_addr, 0, mode3);
                 }
                 self.run();
             }
@@ -243,6 +239,14 @@ impl Computer {
         let out = self.memory.read(self.pc);
         self.pc += 1;
         out
+    }
+
+    fn write(&mut self, addr: Word, value: Word, mode: Mode) {
+        match mode {
+            Mode::Position => self.memory.write(addr, value),
+            Mode::Immediate => panic!("can't write in immediate mode"),
+            Mode::Relative => self.memory.write(self.relative_base + addr, value),
+        }
     }
 
     fn get_operands(&mut self, modes: Vec<Mode>) -> Vec<Word> {
