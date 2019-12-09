@@ -138,9 +138,16 @@ impl Computer {
         self.input(input);
         self.run();
     }
+
     pub fn run(&mut self) {
+	let mut r = self.step();
+	while r {
+	    r = self.step();
+	}
+    }
+
+    fn step(&mut self) -> bool{
         let opcode = Opcode::new(self.read_and_advance());
-        dbg!(&opcode);
         match opcode {
             Opcode::Add(mode1, mode2, mode3) => {
                 let inputs = self.get_operands(vec![mode1, mode2]);
@@ -148,7 +155,6 @@ impl Computer {
 
                 let result = inputs[0] + inputs[1];
                 self.write(output_addr, result, mode3);
-                self.run();
             }
 
             Opcode::Mult(mode1, mode2, mode3) => {
@@ -157,7 +163,6 @@ impl Computer {
 
                 let result = inputs[0] * inputs[1];
                 self.write(output_addr, result, mode3);
-                self.run();
             }
 
             Opcode::Input(mode1) => {
@@ -166,11 +171,11 @@ impl Computer {
                         let output_addr = self.read_and_advance();
                         self.write(output_addr, input, mode1);
                         self.input = None;
-                        self.run();
                     }
                     None => {
                         // move pc back and wait for more input
                         self.pc -= 1;
+			return false;
                     }
                 }
             }
@@ -179,7 +184,6 @@ impl Computer {
                 let inputs = self.get_operands(vec![mode1]);
                 let result = inputs[0];
                 self.outputs.push(result);
-                self.run();
             }
 
             Opcode::JIT(mode1, mode2) => {
@@ -187,7 +191,6 @@ impl Computer {
                 if inputs[0] != 0 {
                     self.pc = inputs[1];
                 }
-                self.run();
             }
 
             Opcode::JIF(mode1, mode2) => {
@@ -195,7 +198,6 @@ impl Computer {
                 if inputs[0] == 0 {
                     self.pc = inputs[1];
                 }
-                self.run();
             }
 
             Opcode::LT(mode1, mode2, mode3) => {
@@ -207,7 +209,6 @@ impl Computer {
                 } else {
                     self.write(output_addr, 0, mode3);
                 }
-                self.run();
             }
 
             Opcode::Eq(mode1, mode2, mode3) => {
@@ -219,20 +220,20 @@ impl Computer {
                 } else {
                     self.write(output_addr, 0, mode3);
                 }
-                self.run();
             }
             // adjust relative base
             Opcode::ARB(mode1) => {
                 let inputs = self.get_operands(vec![mode1]);
                 self.relative_base += inputs[0];
-                self.run()
             }
 
             Opcode::Halt => {
                 dbg!(&self.outputs);
-                self.halted = true
+                self.halted = true;
+		return false;
             }
         }
+	true
     }
 
     fn read_and_advance(&mut self) -> Word {
