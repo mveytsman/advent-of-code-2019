@@ -1,25 +1,78 @@
 use permutohedron::Heap;
+use std::collections::HashMap;
 use std::convert::TryInto;
 
+pub type Word = i64;
+
 pub struct Computer {
-    input: Option<i32>,
-    pc: usize,
-    pub memory: Vec<i32>,
-    outputs: Vec<i32>,
+    input: Option<Word>,
+    pc: Word,
+    pub memory: Memory,
+    pub outputs: Vec<Word>,
     halted: bool,
+    relative_base: Word,
+}
+
+#[derive(Debug)]
+pub struct Memory {
+    mem: HashMap<Word, Word>,
+}
+
+impl Memory {
+    pub fn load(text: &str) -> Memory {
+        let mut mem = HashMap::new();
+        for (i, word) in text.split(",").enumerate() {
+            let word = word.parse::<Word>().unwrap();
+            mem.insert(i as Word, word);
+        }
+        Self { mem: mem }
+    }
+
+    pub fn read(&mut self, ptr: Word) -> Word {
+        if ptr < 0 {
+            panic!("out of bounds");
+        }
+        match self.mem.get(&ptr) {
+            Some(val) => *val,
+            None => {
+                self.mem.insert(ptr, 0);
+                0
+            }
+        }
+    }
+
+    pub fn write(&mut self, ptr: Word, value: Word) {
+        dbg!(&ptr);
+        dbg!(&value);
+        if ptr < 0 {
+            panic!("out of bounds");
+        }
+        self.mem.insert(ptr, value);
+    }
+
+    fn print(&self) -> String {
+        let mut keys: Vec<&Word> = self.mem.keys().collect();
+	keys.sort();
+
+        keys.iter().map(|i| self.mem[*i].to_string())
+            .collect::<Vec<String>>()
+            .join(",")
+    }
 }
 
 #[derive(Debug)]
 enum Mode {
     Position,
     Immediate,
+    Relative,
 }
 
 impl Mode {
-    fn new(num: i32) -> Self {
+    fn new(num: Word) -> Self {
         match num {
             0 => Self::Position,
             1 => Self::Immediate,
+            2 => Self::Relative,
             _ => panic!("unknown mode"),
         }
     }
@@ -28,29 +81,32 @@ impl Mode {
 enum Opcode {
     Add(Mode, Mode),
     Mult(Mode, Mode),
-    Input,
+    Input(Mode),
     Output(Mode),
     JIT(Mode, Mode),
     JIF(Mode, Mode),
-    LT(Mode, Mode),
-    Eq(Mode, Mode),
+    LT(Mode, Mode, Mode),
+    Eq(Mode, Mode, Mode),
+    ARB(Mode),
     Halt,
 }
 impl Opcode {
-    fn new(opcode: i32) -> Self {
+    fn new(opcode: Word) -> Self {
+        dbg!(&opcode);
         let op = opcode % 100;
         let mode1 = Mode::new((opcode / 100) % 10);
         let mode2 = Mode::new((opcode / 1000) % 10);
-        let _mode3 = Mode::new((opcode / 10000) % 10);
+        let mode3 = Mode::new((opcode / 10000) % 10);
         match op {
             1 => Opcode::Add(mode1, mode2),
             2 => Opcode::Mult(mode1, mode2),
-            3 => Opcode::Input,
+            3 => Opcode::Input(mode1),
             4 => Opcode::Output(mode1),
             5 => Opcode::JIT(mode1, mode2),
             6 => Opcode::JIF(mode1, mode2),
-            7 => Opcode::LT(mode1, mode2),
-            8 => Opcode::Eq(mode1, mode2),
+            7 => Opcode::LT(mode1, mode2, mode3),
+            8 => Opcode::Eq(mode1, mode2, mode3),
+            9 => Opcode::ARB(mode1), //adjust relative base
             99 => Opcode::Halt,
             x => panic!("unknown opcode: {}", x),
         }
@@ -59,54 +115,60 @@ impl Opcode {
 
 impl Computer {
     pub fn load(text: &str) -> Computer {
-        let mut memory: Vec<i32> = Vec::new();
-        memory.extend(text.split(",").map(|i| i.parse::<i32>().unwrap()));
+        let mut memory = Memory::load(text);
         Computer {
             input: None,
             pc: 0,
             memory: memory,
             outputs: vec![],
             halted: false,
+            relative_base: 0,
         }
     }
 
-    pub fn input(&mut self, input: i32) {
+    pub fn input(&mut self, input: Word) {
         match self.input {
             None => self.input = Some(input),
             Some(_) => panic!("already have input!"),
         }
     }
 
-    pub fn run_with_input(&mut self, input: i32) {
+    pub fn run_with_input(&mut self, input: Word) {
         self.input(input);
         self.run();
     }
     pub fn run(&mut self) {
         let opcode = Opcode::new(self.read_and_advance());
+        dbg!(&opcode);
         match opcode {
             Opcode::Add(mode1, mode2) => {
                 let inputs = self.get_operands(vec![mode1, mode2]);
-                let output_addr = self.read_and_advance() as usize;
+                let output_addr = self.read_and_advance();
 
                 let result = inputs[0] + inputs[1];
-                self.memory[output_addr] = result;
+                self.memory.write(output_addr, result);
                 self.run();
             }
 
             Opcode::Mult(mode1, mode2) => {
                 let inputs = self.get_operands(vec![mode1, mode2]);
-                let output_addr = self.read_and_advance() as usize;
+                let output_addr = self.read_and_advance();
 
                 let result = inputs[0] * inputs[1];
-                self.memory[output_addr] = result;
+                self.memory.write(output_addr, result);
                 self.run();
             }
 
-            Opcode::Input => {
+            Opcode::Input(mode1) => {
                 match self.input {
                     Some(input) => {
-                        let output_addr = self.read_and_advance() as usize;
-                        self.memory[output_addr] = input;
+                        let argument = self.read_and_advance();
+                        let ptr = match mode1 {
+                            Mode::Immediate => panic!("NO!"),
+                            Mode::Position => argument,
+                            Mode::Relative => self.relative_base + argument,
+                        };
+                        self.memory.write(ptr, input);
                         self.input = None;
                         self.run();
                     }
@@ -119,7 +181,6 @@ impl Computer {
 
             Opcode::Output(mode1) => {
                 let inputs = self.get_operands(vec![mode1]);
-
                 let result = inputs[0];
                 self.outputs.push(result);
                 self.run();
@@ -128,7 +189,7 @@ impl Computer {
             Opcode::JIT(mode1, mode2) => {
                 let inputs = self.get_operands(vec![mode1, mode2]);
                 if inputs[0] != 0 {
-                    self.pc = inputs[1] as usize;
+                    self.pc = inputs[1];
                 }
                 self.run();
             }
@@ -136,71 +197,75 @@ impl Computer {
             Opcode::JIF(mode1, mode2) => {
                 let inputs = self.get_operands(vec![mode1, mode2]);
                 if inputs[0] == 0 {
-                    self.pc = inputs[1] as usize;
+                    self.pc = inputs[1];
                 }
                 self.run();
             }
 
-            Opcode::LT(mode1, mode2) => {
+            Opcode::LT(mode1, mode2, mode3) => {
                 let inputs = self.get_operands(vec![mode1, mode2]);
-                let output_addr = self.read_and_advance() as usize;
+                let output_addr = self.read_and_advance();
 
                 if inputs[0] < inputs[1] {
-                    self.memory[output_addr] = 1;
+                    self.memory.write(output_addr, 1);
                 } else {
-                    self.memory[output_addr] = 0;
+                    self.memory.write(output_addr, 0);
                 }
                 self.run();
             }
 
-            Opcode::Eq(mode1, mode2) => {
+            Opcode::Eq(mode1, mode2, mode3) => {
                 let inputs = self.get_operands(vec![mode1, mode2]);
-                let output_addr = self.read_and_advance() as usize;
+                let output_addr = self.read_and_advance();
 
                 if inputs[0] == inputs[1] {
-                    self.memory[output_addr] = 1;
+                    self.memory.write(output_addr, 1);
                 } else {
-                    self.memory[output_addr] = 0;
+                    self.memory.write(output_addr, 0);
                 }
                 self.run();
             }
+            // adjust relative base
+            Opcode::ARB(mode1) => {
+                let inputs = self.get_operands(vec![mode1]);
+                self.relative_base += inputs[0];
+                self.run()
+            }
 
-            Opcode::Halt => self.halted = true,
+            Opcode::Halt => {
+                dbg!(&self.outputs);
+                self.halted = true
+            }
         }
     }
 
-    fn print_memory(&self) -> String {
-        self.memory
-            .iter()
-            .map(|i| i.to_string())
-            .collect::<Vec<String>>()
-            .join(",")
-    }
-
-    fn read_and_advance(&mut self) -> i32 {
-        let out = self.memory[self.pc];
+    fn read_and_advance(&mut self) -> Word {
+        let out = self.memory.read(self.pc);
         self.pc += 1;
         out
     }
 
-    fn get_operands(&mut self, modes: Vec<Mode>) -> Vec<i32> {
+    fn get_operands(&mut self, modes: Vec<Mode>) -> Vec<Word> {
         let mut output = vec![];
         for mode in modes {
-            match mode {
+            let value = match mode {
                 Mode::Position => {
-                    let pointer = self.read_and_advance() as usize;
-                    output.push(self.memory[pointer]);
+                    let pointer = self.read_and_advance();
+                    self.memory.read(pointer)
                 }
-                Mode::Immediate => {
-                    output.push(self.read_and_advance());
+                Mode::Immediate => self.read_and_advance(),
+                Mode::Relative => {
+                    let pointer = (self.relative_base + self.read_and_advance());
+                    self.memory.read(pointer)
                 }
-            }
+            };
+            output.push(value);
         }
         output
     }
 }
 
-pub fn day7(input: &str) -> i32 {
+pub fn day7(input: &str) -> Word {
     let mut phase_settings = vec![0, 1, 2, 3, 4];
     let heap = Heap::new(&mut phase_settings);
     let mut max_output = 0;
@@ -231,7 +296,7 @@ fn prev_index(i: usize, max: usize) -> usize {
     }
 }
 
-pub fn day7_2(input: &str) -> i32 {
+pub fn day7_2(input: &str) -> Word {
     let mut phase_settings = vec![5, 6, 7, 8, 9];
     let heap = Heap::new(&mut phase_settings);
     let mut max_output = 0;
@@ -288,7 +353,7 @@ mod tests {
         for [input, output] in t.into_iter() {
             let mut computer = Computer::load(input);
             computer.run();
-            assert_eq!(computer.print_memory(), output);
+            assert_eq!(computer.memory.print(), output);
         }
     }
 
@@ -325,5 +390,26 @@ mod tests {
     fn test_day7_2() {
         assert_eq!(139629729, day7_2("3,26,1001,26,-4,26,3,27,1002,27,2,27,1,27,26,27,4,27,1001,28,-1,28,1005,28,6,99,0,0,5"));
         assert_eq!(18216, day7_2("3,52,1001,52,-5,52,3,53,1,52,56,54,1007,54,5,55,1005,55,26,1001,54,-5,54,1105,1,12,1,53,54,53,1008,54,0,55,1001,55,1,55,2,53,55,53,4,53,1001,56,-1,56,1005,56,6,99,0,0,0,0,10"));
+    }
+
+    #[test]
+    fn test_day9_1() {
+        let input = "109,1,204,-1,1001,100,1,100,1008,100,16,101,1006,101,0,99";
+        let mut computer = Computer::load(input);
+        computer.run();
+        assert_eq!(
+            vec![109, 1, 204, -1, 1001, 100, 1, 100, 1008, 100, 16, 101, 1006, 101, 0, 99],
+            computer.outputs
+        );
+
+        let input = "1102,34915192,34915192,7,4,7,99,0";
+        let mut computer = Computer::load(input);
+        computer.run();
+        assert_eq!(vec![1219070632396864], computer.outputs);
+
+        let input = "104,1125899906842624,99";
+        let mut computer = Computer::load(input);
+        computer.run();
+        assert_eq!(vec![1125899906842624], computer.outputs);
     }
 }
