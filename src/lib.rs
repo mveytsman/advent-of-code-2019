@@ -1,3 +1,4 @@
+use num::integer::lcm;
 use std::fs;
 use std::io::{prelude::*, BufReader};
 
@@ -37,7 +38,7 @@ pub fn day_2_2() -> intcode::Word {
     for noun in 0..99 {
         for verb in 0..99 {
             let mut computer = intcode::Computer::load(input);
-            computer.memory.write(1,  noun);
+            computer.memory.write(1, noun);
             computer.memory.write(2, verb);
             computer.run();
             if computer.memory.read(0) == 19690720 {
@@ -68,10 +69,73 @@ pub fn day8_2() {
     day8::collapse_layers(input.trim(), 25, 6);
 }
 
+pub fn day12() -> i32 {
+    let mut moons = vec![
+        day12::Moon::new(-1, -4, 0),
+        day12::Moon::new(4, 7, -1),
+        day12::Moon::new(-14, -10, 9),
+        day12::Moon::new(1, 2, 17),
+    ];
+
+    for i in 0..46867749 {
+        day12::step(&mut moons);
+    }
+
+    moons.iter().map(|m| m.total_energy()).sum()
+}
+
+pub fn day12_2() -> i64 {
+   let mut moons = vec![
+        day12::Moon::new(-1, -4, 0),
+        day12::Moon::new(4, 7, -1),
+        day12::Moon::new(-14, -10, 9),
+        day12::Moon::new(1, 2, 17),
+    ];
+
+    let mut ct = 0;
+    let init_x: Vec<i32> = moons.iter().map(|m| m.position.0).collect();
+    let init_y: Vec<i32> = moons.iter().map(|m| m.position.1).collect();
+    let init_z: Vec<i32> = moons.iter().map(|m| m.position.2).collect();
+    let mut stepsx = 0;
+    let mut stepsy = 0;
+    let mut stepsz = 0;
+    loop {
+        day12::step(&mut moons);
+        ct += 1;
+
+        if stepsx == 0 && moons.iter().map(|m| m.position.0).collect::<Vec<i32>>() == init_x
+            && moons.iter().map(|m| m.velocity.0).collect::<Vec<i32>>() == vec![0, 0, 0, 0]
+        {
+            dbg!(ct);
+            stepsx = ct;
+        }
+
+        if stepsy == 0 && moons.iter().map(|m| m.position.1).collect::<Vec<i32>>() == init_y
+            && moons.iter().map(|m| m.velocity.1).collect::<Vec<i32>>() == vec![0, 0, 0, 0]
+        {
+            dbg!(ct);
+            stepsy = ct;
+        }
+
+        if stepsz == 0 && moons.iter().map(|m| m.position.2).collect::<Vec<i32>>() == init_z
+            && moons.iter().map(|m| m.velocity.2).collect::<Vec<i32>>() == vec![0, 0, 0, 0]
+        {
+            dbg!(ct);
+            stepsz = ct;
+        }
+
+	if stepsx != 0 && stepsy !=0 && stepsz !=0 {
+	    break;
+	}
+    }
+    lcm(stepsx,lcm(stepsy,stepsz))
+}
+
+pub mod day10;
+pub mod day12;
 pub mod day3;
 pub mod day3_2;
 pub mod day4;
 pub mod day6;
 pub mod day8;
 pub mod intcode;
-pub mod day10;
