@@ -3,8 +3,8 @@ use num::integer::gcd;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::convert::TryInto;
+use std::f64;
 use std::ops::Add;
-
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub struct Point {
     x: i32,
@@ -20,30 +20,34 @@ struct Slope {
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub struct Asteroid {
     num_visible: i32,
+    order_vaporized: i32,
 }
 
 impl Asteroid {
     fn new(i: i32) -> Self {
-        Asteroid { num_visible: i }
+        Asteroid {
+            num_visible: i,
+            order_vaporized: -1,
+        }
     }
 }
 #[derive(Debug, PartialEq, Eq)]
 pub struct Asteroids {
+    width: i32,
+    height: i32,
     data: HashMap<Point, Asteroid>,
 }
 impl Asteroids {
-    fn new() -> Asteroids {
-        Asteroids {
-            data: HashMap::new(),
-        }
-    }
     pub fn from_input(input: &str) -> Asteroids {
         let mut coordinates = HashSet::new();
 
-        for (i, line) in input.split("\n").enumerate() {
+        let lines: Vec<&str> = input.split("\n").collect();
+        let height = lines.len();
+        let width = lines[0].len();
+        for (i, line) in lines.iter().enumerate() {
             for (j, chr) in line.chars().enumerate() {
                 if chr == '#' {
-                    let point = Point::new(i, j);
+                    let point = Point::new(j, i);
                     coordinates.insert(point);
                 }
             }
@@ -64,7 +68,11 @@ impl Asteroids {
             }
         }
 
-        Asteroids { data: data }
+        Asteroids {
+            data: data,
+            height: height as i32,
+            width: width as i32,
+        }
     }
 
     pub fn max_visible(&self) -> (Point, Asteroid) {
@@ -74,6 +82,24 @@ impl Asteroids {
             .max_by(|(_, a), (_, b)| a.num_visible.cmp(&b.num_visible))
             .unwrap();
         (*x, *y)
+    }
+
+    pub fn vaporize(&mut self) {
+        let (start, _) = self.max_visible();
+        let mut edge = Point::new(start.x, 0);
+        let mut i = 1;
+
+        let mut coordinates: Vec<&Point> = self.data.keys().filter(|x| *x != &start).collect();
+        coordinates.sort_by(|a, b| {
+            start
+                .slope_to(**a)
+                .angle()
+                .partial_cmp(&start.slope_to(**b).angle())
+                .unwrap()
+        });
+        for i in coordinates {
+            dbg!(&start.slope_to(*i));
+        }
     }
 }
 
@@ -89,6 +115,23 @@ fn visible(coordinates: &HashSet<Point>, pt1: &Point, pt2: &Point) -> bool {
     true
 }
 
+fn first_visible(
+    coordinates: &HashSet<&Point>,
+    start: Point,
+    slope: Slope,
+    width: i32,
+    height: i32,
+) -> Option<Point> {
+    let mut cur = start + slope;
+    while cur.x >= 0 && cur.x < width && cur.y < height && cur.y > 0 {
+        if coordinates.contains(&cur) {
+            return Some(cur);
+        }
+        cur = cur + slope;
+    }
+    None
+}
+
 impl Add<Slope> for Point {
     type Output = Point;
 
@@ -97,6 +140,14 @@ impl Add<Slope> for Point {
             x: self.x + slope.x,
             y: self.y + slope.y,
         }
+    }
+}
+
+impl Slope {
+    fn angle(&self) -> f64 {
+        let ang = (self.y as f64).atan2(self.x as f64);
+        // we want clockwise and starting from pi/4
+        0.0 - (ang - f64::consts::FRAC_PI_2)
     }
 }
 
@@ -117,6 +168,21 @@ impl Point {
         let g = gcd(x, y);
 
         Slope { x: x / g, y: y / g }
+    }
+
+    fn next_edge(&self, width: i32, height: i32) -> Point {
+        match self {
+            Point { x: 0, y: 0 } => Point::new(1, 0),
+            Point { x, y: 0 } if *x == width - 1 => Point::new(width - 1, 1),
+            Point { x, y } if *x == width - 1 && *y == height - 1 => {
+                Point::new(width - 2, height - 1)
+            }
+            Point { x: 0, y } if *y == height - 1 => Point::new(0, height - 2),
+            Point { x, y: 0 } => Point::new(*x + 1, 0),
+            Point { x, y } if *x == width - 1 => Point::new(width - 1, *y + 1),
+            Point { x, y } if *y == height - 1 => Point::new(*x - 1, height - 1),
+            Point { x, y } => Point::new(*x, *y - 1),
+        }
     }
 }
 
@@ -145,26 +211,49 @@ mod tests {
 ....#
 ...##";
         let coordinates = vec![
-            ((0, 1), 7),
-            ((0, 4), 7),
-            ((2, 0), 6),
-            ((2, 1), 7),
+            ((1, 0), 7),
+            ((4, 0), 7),
+            ((0, 2), 6),
+            ((1, 2), 7),
             ((2, 2), 7),
-            ((2, 3), 7),
-            ((2, 4), 5),
-            ((3, 4), 7),
-            ((4, 3), 8),
+            ((3, 2), 7),
+            ((4, 2), 5),
+            ((4, 3), 7),
+            ((3, 4), 8),
             ((4, 4), 7),
         ];
         let asteroids: HashMap<Point, Asteroid> = coordinates
             .iter()
             .map(|((x, y), n)| (Point::new(*x, *y), Asteroid::new(*n)))
             .collect();
-        assert_eq!(Asteroids { data: asteroids }, Asteroids::from_input(input));
         assert_eq!(
-            (Point::new(4, 3), Asteroid::new(8)),
+            Asteroids {
+                height: 5,
+                width: 5,
+                data: asteroids
+            },
+            Asteroids::from_input(input)
+        );
+        assert_eq!(
+            (Point::new(3, 4), Asteroid::new(8)),
             Asteroids::from_input(input).max_visible()
         );
+
+        let input = "......#.#.
+#..#.#....
+..#######.
+.#.#.###..
+.#..#.....
+..#....#.#
+#..#....#.
+.##.#..###
+##...#..#.
+.#....####";
+        assert_eq!(
+            (Point::new(5, 8), Asteroid::new(33)),
+            Asteroids::from_input(input).max_visible()
+        );
+	Asteroids::from_input(input).vaporize();
 
         let input = ".#..##.###...#######
 ##.############..##.
@@ -188,8 +277,10 @@ mod tests {
 ###.##.####.##.#..##";
 
         assert_eq!(
-            (Point::new(13, 11), Asteroid::new(210)),
+            (Point::new(11, 13), Asteroid::new(210)),
             Asteroids::from_input(input).max_visible()
         );
+
+
     }
 }
