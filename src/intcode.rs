@@ -1,6 +1,5 @@
 use permutohedron::Heap;
 use std::collections::HashMap;
-use std::convert::TryInto;
 
 pub type Word = i64;
 
