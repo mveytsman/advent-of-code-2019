@@ -41,8 +41,6 @@ impl Memory {
     }
 
     pub fn write(&mut self, ptr: Word, value: Word) {
-        dbg!(&ptr);
-        dbg!(&value);
         if ptr < 0 {
             panic!("out of bounds");
         }
@@ -92,7 +90,6 @@ enum Opcode {
 }
 impl Opcode {
     fn new(opcode: Word) -> Self {
-        dbg!(&opcode);
         let op = opcode % 100;
         let mode1 = Mode::new((opcode / 100) % 10);
         let mode2 = Mode::new((opcode / 1000) % 10);
@@ -143,6 +140,10 @@ impl Computer {
 	while r {
 	    r = self.step();
 	}
+    }
+
+    pub fn halted(&self) -> bool {
+	self.halted
     }
 
     fn step(&mut self) -> bool{
@@ -227,7 +228,6 @@ impl Computer {
             }
 
             Opcode::Halt => {
-                dbg!(&self.outputs);
                 self.halted = true;
 		return false;
             }
@@ -259,7 +259,7 @@ impl Computer {
                 }
                 Mode::Immediate => self.read_and_advance(),
                 Mode::Relative => {
-                    let pointer = (self.relative_base + self.read_and_advance());
+                    let pointer = self.relative_base + self.read_and_advance();
                     self.memory.read(pointer)
                 }
             };
@@ -275,10 +275,8 @@ pub fn day7(input: &str) -> Word {
     let mut max_output = 0;
     for permutation in heap {
         let mut last_output = 0;
-        dbg!(&permutation);
         for i in permutation {
             let mut computer = Computer::load(input);
-            dbg!(&last_output);
             computer.run_with_input(i);
             if !computer.halted {
                 computer.run_with_input(last_output);
@@ -305,7 +303,6 @@ pub fn day7_2(input: &str) -> Word {
     let heap = Heap::new(&mut phase_settings);
     let mut max_output = 0;
     for permutation in heap {
-        dbg!(&permutation);
         let mut computers = vec![];
         for i in permutation {
             let mut computer = Computer::load(input);
