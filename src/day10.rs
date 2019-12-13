@@ -86,20 +86,27 @@ impl Asteroids {
 
     pub fn vaporize(&mut self) {
         let (start, _) = self.max_visible();
-        let mut edge = Point::new(start.x, 0);
-        let mut i = 1;
+        let mut slopes: Vec<Slope> = self
+            .data
+            .keys()
+            .filter(|x| *x != &start)
+            .map(|x| start.slope_to(*x))
+            .collect();
+        slopes.sort_by(|a, b| a.angle().partial_cmp(&b.angle()).unwrap());
+	slopes.dedup();
+	dbg!(&slopes);
 
-        let mut coordinates: Vec<&Point> = self.data.keys().filter(|x| *x != &start).collect();
-        coordinates.sort_by(|a, b| {
-            start
-                .slope_to(**a)
-                .angle()
-                .partial_cmp(&start.slope_to(**b).angle())
-                .unwrap()
-        });
-        for i in coordinates {
-            dbg!(&start.slope_to(*i));
-        }
+	let mut coordinates : HashSet<&Point> = self.data.keys().collect();
+	let mut i = 0;
+	dbg!(self.max_visible());
+	while coordinates.len() != 0 {
+	    let pt = first_visible(&coordinates, start, slopes[i%slopes.len()], 1000,1000).unwrap();
+	    coordinates.remove(&pt);
+	    dbg!(i);
+	    dbg!(pt);
+	    dbg!(slopes[i%slopes.len()]);
+	    i+=1;
+	}
     }
 }
 
@@ -147,7 +154,13 @@ impl Slope {
     fn angle(&self) -> f64 {
         let ang = (self.y as f64).atan2(self.x as f64);
         // we want clockwise and starting from pi/4
-        0.0 - (ang - f64::consts::FRAC_PI_2)
+        let ang = 0.0 - (ang - f64::consts::FRAC_PI_2);
+
+        if ang < 0.0 {
+            ang + 2.0 * f64::consts::PI
+        } else {
+            ang
+        }
     }
 }
 
@@ -168,21 +181,6 @@ impl Point {
         let g = gcd(x, y);
 
         Slope { x: x / g, y: y / g }
-    }
-
-    fn next_edge(&self, width: i32, height: i32) -> Point {
-        match self {
-            Point { x: 0, y: 0 } => Point::new(1, 0),
-            Point { x, y: 0 } if *x == width - 1 => Point::new(width - 1, 1),
-            Point { x, y } if *x == width - 1 && *y == height - 1 => {
-                Point::new(width - 2, height - 1)
-            }
-            Point { x: 0, y } if *y == height - 1 => Point::new(0, height - 2),
-            Point { x, y: 0 } => Point::new(*x + 1, 0),
-            Point { x, y } if *x == width - 1 => Point::new(width - 1, *y + 1),
-            Point { x, y } if *y == height - 1 => Point::new(*x - 1, height - 1),
-            Point { x, y } => Point::new(*x, *y - 1),
-        }
     }
 }
 
@@ -253,7 +251,6 @@ mod tests {
             (Point::new(5, 8), Asteroid::new(33)),
             Asteroids::from_input(input).max_visible()
         );
-	Asteroids::from_input(input).vaporize();
 
         let input = ".#..##.###...#######
 ##.############..##.
@@ -280,7 +277,19 @@ mod tests {
             (Point::new(11, 13), Asteroid::new(210)),
             Asteroids::from_input(input).max_visible()
         );
+    }
 
+    #[test]
+    fn test_vaporize() {
+        let input = ".#..#
+.....
+#####
+....#
+...##";
 
+       // dbg!(Asteroids::from_input(input).vaporize());
+	dbg!(Slope{x:1, y:1}.angle());
+	dbg!(Point::new(3,4).slope_to(Point::new(3,2)));
+        //assert_eq!(1, 1);
     }
 }
