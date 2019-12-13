@@ -1,5 +1,5 @@
 use advent2019::*;
 fn main() {
 
-    day13();
+    println!("{}",day10());
 }

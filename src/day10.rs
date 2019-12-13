@@ -7,8 +7,8 @@ use std::f64;
 use std::ops::Add;
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub struct Point {
-    x: i32,
-    y: i32,
+    pub x: i32,
+    pub y: i32,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
@@ -84,29 +84,31 @@ impl Asteroids {
         (*x, *y)
     }
 
-    pub fn vaporize(&mut self) {
+    pub fn vaporize(&mut self) -> Point {
         let (start, _) = self.max_visible();
-        let mut slopes: Vec<Slope> = self
-            .data
-            .keys()
-            .filter(|x| *x != &start)
-            .map(|x| start.slope_to(*x))
-            .collect();
+        let other_points = self.data.keys().filter(|x| *x != &start);
+        let mut slopes: Vec<Slope> = other_points.clone().map(|x| start.slope_to(*x)).collect();
         slopes.sort_by(|a, b| a.angle().partial_cmp(&b.angle()).unwrap());
-	slopes.dedup();
-	dbg!(&slopes);
+        slopes.dedup();
 
-	let mut coordinates : HashSet<&Point> = self.data.keys().collect();
-	let mut i = 0;
-	dbg!(self.max_visible());
-	while coordinates.len() != 0 {
-	    let pt = first_visible(&coordinates, start, slopes[i%slopes.len()], 1000,1000).unwrap();
-	    coordinates.remove(&pt);
-	    dbg!(i);
-	    dbg!(pt);
-	    dbg!(slopes[i%slopes.len()]);
-	    i+=1;
-	}
+        let mut coordinates: HashSet<&Point> = other_points.collect();
+        let mut i = 0;
+        let mut ct = 1;
+
+        while coordinates.len() != 0 {
+            match first_visible(&coordinates, start, slopes[i % slopes.len()], 100, 100) {
+                Some(pt) => {
+                    coordinates.remove(&pt);
+                    if ct == 200 {
+                        return pt;
+                    }
+                    ct += 1;
+                }
+                None => (),
+            }
+            i += 1;
+        }
+        Point::new(-1, -1)
     }
 }
 
@@ -130,7 +132,7 @@ fn first_visible(
     height: i32,
 ) -> Option<Point> {
     let mut cur = start + slope;
-    while cur.x >= 0 && cur.x < width && cur.y < height && cur.y > 0 {
+    while cur.x >= 0 && cur.x < width && cur.y < height && cur.y >= 0 {
         if coordinates.contains(&cur) {
             return Some(cur);
         }
@@ -154,7 +156,7 @@ impl Slope {
     fn angle(&self) -> f64 {
         let ang = (self.y as f64).atan2(self.x as f64);
         // we want clockwise and starting from pi/4
-        let ang = 0.0 - (ang - f64::consts::FRAC_PI_2);
+        let ang = ang + f64::consts::FRAC_PI_2;
 
         if ang < 0.0 {
             ang + 2.0 * f64::consts::PI
@@ -281,15 +283,27 @@ mod tests {
 
     #[test]
     fn test_vaporize() {
-        let input = ".#..#
-.....
-#####
-....#
-...##";
+        let input = ".#..##.###...#######
+##.############..##.
+.#.######.########.#
+.###.#######.####.#.
+#####.##.#.##.###.##
+..#####..#.#########
+####################
+#.####....###.#.#.##
+##.#################
+#####.##.###..####..
+..######..##.#######
+####.##.####...##..#
+.#####..#.######.###
+##...#.##########...
+#.##########.#######
+.####.#.###.###.#.##
+....##.##.###..#####
+.#.#.###########.###
+#.#.#.#####.####.###
+###.##.####.##.#..##";
 
-       // dbg!(Asteroids::from_input(input).vaporize());
-	dbg!(Slope{x:1, y:1}.angle());
-	dbg!(Point::new(3,4).slope_to(Point::new(3,2)));
-        //assert_eq!(1, 1);
+        assert_eq!(Point::new(8, 2), Asteroids::from_input(input).vaporize());
     }
 }
